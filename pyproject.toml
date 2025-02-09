@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "wiskoro-backend"
+version = "0.1.0"
+description = ""
+authors = ["Jouw Naam <jouw-email@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.95.0"
+uvicorn = "^0.22.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
