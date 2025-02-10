@@ -202,13 +202,17 @@ async def shutdown_event():
         await Database.pool.close()
     logger.info("✅ Applicatie succesvol afgesloten")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-
 @app.get("/routes")
 async def list_routes():
-    return {route.path: route.methods for route in app.routes}
+    logger.info("Routes endpoint called")
+    routes_list = {route.path: list(route.methods) for route in app.routes}
+    logger.info(f"Available routes: {routes_list}")
+    return routes_list
+
+@app.get("/test")
+async def test_endpoint():
+    logger.info("Test endpoint called")
+    return {"message": "Test werkt!", "status": "success"}
 
 if __name__ == "__main__":
     import uvicorn
