@@ -3,7 +3,7 @@ import asyncpg
 import requests
 import smtplib
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +14,9 @@ from pydantic_settings import BaseSettings
 from email.mime.text import MIMEText
 import time
 import asyncio
+import re
 
-# 🔹 Logging setup with more detailed configuration
+# 🔹 Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -34,8 +35,8 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str
     EMAIL_RECEIVER: str
     RATE_LIMIT_PER_MINUTE: int = 30
-    AI_TIMEOUT: int = 10
-    CACHE_EXPIRATION: int = 3600  # 1 uur
+    AI_TIMEOUT: int = 20  # Verhoogd voor complexere wiskundevragen
+    CACHE_EXPIRATION: int = 3600
 
     class Config:
         case_sensitive = True
@@ -105,17 +106,88 @@ class Database:
     async def release_connection(cls, conn):
         await cls.pool.release(conn)
 
-# 🔹 AI chatbot met caching
+def format_math_response(text: str) -> str:
+    """Format wiskundige notaties voor betere leesbaarheid."""
+    replacements = {
+        '*': '×',
+        '/': '÷',
+        'sqrt': '√',
+        '^2': '²',
+        '^3': '³',
+        'pi': 'π',
+        'theta': 'θ',
+        'alpha': 'α',
+        'beta': 'β',
+        'delta': 'Δ',
+        'sum': '∑',
+        'infinity': '∞'
+    }
+    
+    formatted_text = text
+    for old, new in replacements.items():
+        formatted_text = formatted_text.replace(old, new)
+    
+    # Format vergelijkingen met spaties
+    formatted_text = re.sub(r'(\d+)([\+\-\×\÷])', r'\1 \2 ', formatted_text)
+    formatted_text = re.sub(r'([\+\-\×\÷])(\d+)', r' \1 \2', formatted_text)
+    
+    return formatted_text
+
+def validate_math_question(question: str) -> Tuple[bool, str]:
+    """Valideer of de vraag wiskunde-gerelateerd is."""
+    math_keywords = [
+        'plus', 'min', 'keer', 'gedeeld', 'deel', 'wortel', 'kwadraat', 'vergelijking',
+        'functie', 'grafiek', 'formule', 'bereken', 'oplos', 'reken', 'uitkomst',
+        '+', '-', '*', '/', '=', '%', '²', '³', 'π', 'pi', 'hoek', 'driehoek',
+        'vierkant', 'rechthoek', 'cirkel', 'oppervlakte', 'omtrek', 'volume',
+        'algebra', 'meetkunde', 'goniometrie', 'sin', 'cos', 'tan', 'logaritme',
+        'macht', 'factor', 'breuk', 'percentage', 'gemiddelde', 'mediaan', 'modus'
+    ]
+    
+    # Check voor getallen
+    has_numbers = any(char.isdigit() for char in question)
+    
+    # Check voor wiskundige termen
+    has_math_terms = any(keyword in question.lower() for keyword in math_keywords)
+    
+    if not (has_numbers or has_math_terms):
+        return False, "Yo! Drop een wiskundevraag en ik help je ermee! 🔢 Bijvoorbeeld: 'Los 3x + 5 = 11 op' of 'Bereken de oppervlakte van een cirkel met straal 4'"
+    
+    return True, ""
+
+# 🔹 AI chatbot met wiskunde focus
 async def get_ai_response(user_question: str) -> str:
-    """Haalt AI-respons op via Hugging Face API."""
+    """Haalt AI-respons op via Hugging Face API met wiskunde focus."""
     cached_response = cache.get(user_question)
     if cached_response:
         logger.info("Cache hit voor vraag: %s", user_question)
         return cached_response
 
-    AI_MODEL = "facebook/blenderbot-400M-distill"
+    # Gebruik een model dat beter is in wiskunde
+    AI_MODEL = "google/flan-t5-large"
+
+    # Maak een wiskunde-specifieke prompt
+    math_prompt = f"""Je bent een vriendelijke wiskundedocent die uitlegt in jongerentaal. 
+    Los dit wiskundeprobleem stap voor stap op:
+
+    {user_question}
+
+    Geef een duidelijke uitleg in korte, begrijpelijke stappen. 
+    Gebruik emoji's om je uitleg leuker te maken.
+    Begin elke stap met een nummer.
+    Leg uit waarom je elke stap doet.
+    Geef aan het eind het eindantwoord duidelijk aan met '✅ Antwoord:'."""
+
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
-    payload = {"inputs": user_question}
+    payload = {
+        "inputs": math_prompt,
+        "parameters": {
+            "max_length": 800,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "do_sample": True
+        }
+    }
 
     try:
         response = requests.post(
@@ -128,7 +200,9 @@ async def get_ai_response(user_question: str) -> str:
         response_data = response.json()
 
         if isinstance(response_data, list) and response_data:
-            result = response_data[0].get("generated_text", "Yo, geen idee wat je bedoelt... 🤔")
+            result = response_data[0].get("generated_text", "")
+            # Format wiskundige notaties
+            result = format_math_response(result)
             cache.set(user_question, result)
             return result
 
@@ -138,13 +212,13 @@ async def get_ai_response(user_question: str) -> str:
         logger.error("AI timeout voor vraag: %s", user_question)
         raise HTTPException(
             status_code=504,
-            detail="Yo fam, deze vraag is te complex voor nu! Probeer het nog een x! ⏳"
+            detail="Yo fam, deze wiskundevraag is complex! Probeer het nog een x of splits je vraag op! ⏳"
         )
     except requests.exceptions.RequestException as e:
         logger.error("AI API error: %s", str(e), exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="De AI is even offline, kom zo terug! 🔧"
+            detail="De wiskunde-AI is even offline, kom zo terug! 🔧"
         )
 
 # 🔹 FastAPI setup
@@ -157,7 +231,7 @@ app = FastAPI(
     root_path=""
 )
 
-# CORS middleware setup met specifieke origins
+# CORS middleware setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -195,7 +269,7 @@ async def root():
             "methods": list(route.methods) if route.methods else []
         })
     return {
-        "message": "Wiskoro API is live! 🚀",
+        "message": "Wiskoro API is live!",
         "status": "healthy",
         "routes": routes,
         "environment": os.environ.get("RAILWAY_ENVIRONMENT", "unknown")
@@ -203,9 +277,14 @@ async def root():
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    """Endpoint voor AI-chatbot"""
+    """Endpoint voor AI-chatbot met wiskunde focus"""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Yo, drop even een vraag! 📢")
+
+    # Valideer of het een wiskundevraag is
+    is_valid, error_message = validate_math_question(request.message)
+    if not is_valid:
+        return {"response": error_message}
 
     try:
         bot_response = await get_ai_response(request.message)
@@ -220,7 +299,7 @@ async def test_endpoint():
     logger.info("Test endpoint aangeroepen")
     try:
         response = {
-            "message": "Test endpoint werkt! 🎉",
+            "message": "Test endpoint werkt!",
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
             "version": "1.0.0"
@@ -257,22 +336,19 @@ async def health_check():
             }
         )
 
-# 🔹 Startup event
+# 🔹 Startup & Shutdown events blijven hetzelfde
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services en log environment info."""
+    """Initialize services."""
     try:
-        # Log environment information
         logger.info("🔄 Starting application with environment:")
         logger.info(f"PORT: {os.environ.get('PORT', 'not set')}")
         logger.info(f"HOST: {os.environ.get('HOST', 'not set')}")
         logger.info(f"RAILWAY_STATIC_URL: {os.environ.get('RAILWAY_STATIC_URL', 'not set')}")
         logger.info(f"RAILWAY_PUBLIC_DOMAIN: {os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'not set')}")
         
-        # Initialize database
         await Database.create_pool()
         
-        # Log all registered routes
         routes = []
         for route in app.routes:
             routes.append({
@@ -287,7 +363,6 @@ async def startup_event():
         logger.error("❌ Startup error: %s", str(e), exc_info=True)
         raise
 
-# 🔹 Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup bij afsluiten."""
