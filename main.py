@@ -1,40 +1,11 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Voor nu toestaan vanaf alle domeinen, kan later strikter
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class ChatRequest(BaseModel):
-    input_text: str
-
-@app.get("/")
-def read_root():
-    return JSONResponse(content={"message": "Wiskoro backend is live!"}, media_type="application/json; charset=utf-8")
-
-@app.post("/chat")
-def chat(request: ChatRequest):
-    response = f"Je zei: {request.input_text}. Maar bro, laat me ff nadenken... 🤔"
-    return JSONResponse(content={"response": response}, media_type="application/json; charset=utf-8")
-
-@app.get("/chat")
-def chat_get(input_text: str):
-    response = f"Je zei: {input_text}. Maar bro, laat me ff nadenken... 🤔"
-    return JSONResponse(content={"response": response}, media_type="application/json; charset=utf-8")
-
-from fastapi import FastAPI
 import asyncpg
 import os
 
 app = FastAPI()
 
+# PostgreSQL connectiegegevens ophalen
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def connect_db():
@@ -54,12 +25,36 @@ async def create_table():
         );
     """)
     await conn.close()
-    print("✅ Logs-tabel aangemaakt (of bestond al)")
+    print("✅ Logs-tabel aangemaakt of bestaat al.")
 
-# Startup event om de tabel te maken bij backend opstarten
+# Startup event om de tabel aan te maken bij het opstarten van de backend
 @app.on_event("startup")
 async def startup():
     await create_table()
+
+# API request model
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat(request: ChatRequest):
+    user_question = request.message
+
+    # Placeholder antwoord (later kan AI worden toegevoegd)
+    bot_response = f"Je zei: {user_question}. Hier is je antwoord! 📚"
+
+    # Log de interactie in de database
+    conn = await connect_db()
+    try:
+        await conn.execute("""
+            INSERT INTO logs (vraag, antwoord, status) 
+            VALUES ($1, $2, $3)
+        """, user_question, bot_response, "succes")
+        await conn.close()
+    except Exception as e:
+        print(f"⚠️ Database fout bij logging: {e}")
+
+    return {"response": bot_response}
 
 @app.get("/")
 async def root():
