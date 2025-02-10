@@ -28,3 +28,36 @@ def chat(request: ChatRequest):
 def chat_get(input_text: str):
     response = f"Je zei: {input_text}. Maar bro, laat me ff nadenken... 🤔"
     return JSONResponse(content={"response": response}, media_type="application/json; charset=utf-8")
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+import asyncpg
+import os
+
+app = FastAPI()
+
+# Database URL van Railway ophalen
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Connectie maken met PostgreSQL
+async def connect_db():
+    return await asyncpg.connect(DATABASE_URL)
+
+# Zorg dat de tabel wordt aangemaakt
+async def create_table():
+    conn = await connect_db()
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            vraag TEXT NOT NULL,
+            antwoord TEXT NOT NULL,
+            status TEXT NOT NULL
+        );
+    """)
+    await conn.close()
+
+# Startup event om de tabel aan te maken bij het starten van de backend
+@app.on_event("startup")
+async def startup():
+    await create_table()
