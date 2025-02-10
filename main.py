@@ -209,3 +209,8 @@ if __name__ == "__main__":
 @app.get("/routes")
 async def list_routes():
     return {route.path: route.methods for route in app.routes}
+
+if __name__ == "__main__":
+    import uvicorn
+    print("🔥 FastAPI wordt gestart op poort 8080...")  # Debugging log
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
