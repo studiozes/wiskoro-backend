@@ -174,6 +174,10 @@ async def chat(request: ChatRequest):
         logger.error(f"Chat endpoint error: {str(e)}", exc_info=True)
         raise
 
+@app.get("/test")
+async def test_endpoint():
+    return {"message": "Test werkt!"}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
