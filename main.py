@@ -153,8 +153,22 @@ app = FastAPI(
     title="Wiskoro API",
     version="1.0.0",
     docs_url="/docs",  # Enable Swagger UI
-    redoc_url="/redoc"  # Enable ReDoc
+    redoc_url="/redoc",  # Enable ReDoc
+    debug=True  # Enable debug mode
 )
+
+# Log all registered routes at startup
+@app.on_event("startup")
+async def log_routes():
+    """Log all registered routes at startup."""
+    routes = []
+    for route in app.routes:
+        routes.append({
+            "path": route.path,
+            "methods": list(route.methods) if route.methods else [],
+            "name": route.name if route.name else "unnamed"
+        })
+    logger.info(f"Registered routes at startup: {routes}")
 
 # Update CORS middleware with specific origins
 app.add_middleware(
@@ -222,40 +236,46 @@ async def health_check():
             }
         )
 
-@app.get("/routes")
+@app.get("/routes", include_in_schema=True)
 async def list_routes():
     """List all available API routes."""
     try:
-        routes_list = {}
+        routes_list = []
         for route in app.routes:
-            routes_list[route.path] = {
-                "methods": list(route.methods),
-                "name": route.name,
-                "endpoint": route.path
-            }
-        logger.info("Routes retrieved successfully")
-        return JSONResponse(content=routes_list)
+            routes_list.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else [],
+                "name": route.name if route.name else "unnamed"
+            })
+        logger.info(f"Available routes: {routes_list}")
+        return {"routes": routes_list, "count": len(routes_list)}
     except Exception as e:
-        logger.error("Failed to list routes: %s", str(e))
+        logger.error(f"Failed to list routes: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Kon de routes niet ophalen"
+            detail=f"Kon de routes niet ophalen: {str(e)}"
         )
 
-@app.get("/test")
+@app.get("/test", include_in_schema=True)
+@app.get("/api/test", include_in_schema=True)  # Alternative route
 async def test_endpoint():
     """Test endpoint voor basis API functionaliteit."""
+    logger.info("Test endpoint aangeroepen")
     try:
-        return {
+        response = {
             "message": "Test endpoint werkt! 🎉",
             "status": "success",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0"
         }
+        logger.info(f"Test endpoint response: {response}")
+        return response
     except Exception as e:
-        logger.error("Test endpoint error: %s", str(e))
+        error_msg = f"Test endpoint error: {str(e)}"
+        logger.error(error_msg)
         raise HTTPException(
             status_code=500,
-            detail="Test endpoint fout"
+            detail=error_msg
         )
 
 # 🔹 Startup
