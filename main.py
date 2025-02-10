@@ -1,155 +1,152 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import asyncpg
 import os
-
-app = FastAPI()
-
-# PostgreSQL connectiegegevens ophalen
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-async def connect_db():
-    """Maakt verbinding met de database."""
-    return await asyncpg.connect(DATABASE_URL)
-
-async def create_table():
-    """Maakt de logs-tabel aan als deze nog niet bestaat."""
-    conn = await connect_db()
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS logs (
-            id SERIAL PRIMARY KEY,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            vraag TEXT NOT NULL,
-            antwoord TEXT NOT NULL,
-            status TEXT NOT NULL
-        );
-    """)
-    await conn.close()
-    print("✅ Logs-tabel aangemaakt of bestaat al.")
-
-# Startup event om de tabel aan te maken bij het opstarten van de backend
-@app.on_event("startup")
-async def startup():
-    await create_table()
-
-# API request model
-class ChatRequest(BaseModel):
-    message: str
-
+import asyncpg
 import requests
-from fastapi import FastAPI
-from pydantic import BaseModel
-import asyncpg
-import os
+import smtplib
+import logging
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from pydantic import BaseModel, BaseSettings
+from email.mime.text import MIMEText
 
-app = FastAPI()
+# 🔹 Logging configureren
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-# API sleutel voor Hugging Face
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
-HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.1"  # Mistral AI model
+# 🔹 Configuratie met Pydantic voor environment variables
+class Settings(BaseSettings):
+    DATABASE_URL: str
+    HUGGINGFACE_API_KEY: str
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    EMAIL_RECEIVER: str
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+    class Config:
+        case_sensitive = True
 
-async def connect_db():
-    """Maakt verbinding met de database."""
-    return await asyncpg.connect(DATABASE_URL)
+settings = Settings()
 
-# API request model
-class ChatRequest(BaseModel):
-    message: str
+# 🔹 Database connection pooling
+class Database:
+    pool = None
 
-@app.post("/chat")
-async def chat(request: ChatRequest):
-    user_question = request.message
+    @classmethod
+    async def create_pool(cls):
+        cls.pool = await asyncpg.create_pool(settings.DATABASE_URL, min_size=5, max_size=20)
 
-    # Verstuur de vraag naar Hugging Face API
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+    @classmethod
+    async def get_connection(cls):
+        if not cls.pool:
+            await cls.create_pool()
+        return await cls.pool.acquire()
+
+# 🔹 AI integratie met Hugging Face
+async def get_ai_response(user_question: str) -> str:
+    headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {"inputs": user_question}
-    
+
     try:
         response = requests.post(
-            f"https://api-inference.huggingface.co/models/{HF_MODEL}",
+            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
             headers=headers,
             json=payload,
+            timeout=10  # Kortere timeout voor snellere respons
         )
+        response.raise_for_status()
         response_data = response.json()
 
-        bot_response = response_data[0]["generated_text"] if isinstance(response_data, list) else "Sorry bro, ik snap je vraag ff niet. 😕"
+        if isinstance(response_data, list) and response_data:
+            return response_data[0].get("generated_text", "Ik snap je vraag ff niet. 🤔")
+        return "AI gaf een rare respons. Probeer opnieuw. 🤖"
 
-        # Log in database
-        conn = await connect_db()
-        await conn.execute("""
-            INSERT INTO logs (vraag, antwoord, status) 
-            VALUES ($1, $2, $3)
-        """, user_question, bot_response, "succes")
-        await conn.close()
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="AI service timeout ⏳")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"AI API error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Fout bij ophalen AI antwoord 🔧")
 
+# 🔹 FastAPI-instantie & middleware
+app = FastAPI(title="Wiskoro API", version="1.0.0")
+
+# CORS instellen (nodig voor frontend integratie)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Later beperken tot specifieke domeinen
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 🔹 API request model
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat", tags=["Chatbot"])
+async def chat(request: ChatRequest):
+    user_question = request.message
+    bot_response = await get_ai_response(user_question)
+
+    conn = await Database.get_connection()
+    try:
+        await conn.execute(
+            "INSERT INTO logs (vraag, antwoord, status) VALUES ($1, $2, $3)",
+            user_question, bot_response, "succes"
+        )
     except Exception as e:
-        bot_response = "Yo, er ging ff wat mis. 🔧"
-        print(f"⚠️ API fout: {e}")
+        logger.error(f"Database logging error: {str(e)}", exc_info=True)
+    finally:
+        await conn.release()
 
     return {"response": bot_response}
 
-@app.get("/")
-async def root():
-    return {"message": "Wiskoro API is live!"}
+# 🔹 Health Check Endpoint
+@app.get("/health", tags=["Monitoring"])
+async def health_check():
+    return {"status": "ok", "message": "Wiskoro API draait soepel 🚀"}
 
-import smtplib
-from email.mime.text import MIMEText
-import asyncio
-from datetime import datetime, timedelta
-
-# E-mail configuratie
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "wiskoro.app@gmail.com"
-SMTP_PASSWORD = "nieh bkjf aqdg mzuv"
-EMAIL_RECEIVER = "wiskoro.app@gmail.com"
-
+# 🔹 Dagelijkse e-mailfunctie
 async def send_daily_email():
     try:
-        conn = await connect_db()
+        conn = await Database.get_connection()
         result = await conn.fetch("SELECT COUNT(*), ARRAY_AGG(vraag) FROM logs WHERE timestamp >= CURRENT_DATE;")
-        await conn.close()
+        await conn.release()
 
         total_questions = result[0]["count"]
         questions_list = result[0]["array_agg"]
 
-        email_content = f"""\
-        Hey Wiskoro-baas! 🚀
-
-        Hier is je dagelijkse log:
-        🔢 Totaal aantal vragen vandaag: {total_questions}
-        ❓ Vragen die gesteld zijn:
-        {chr(10).join(questions_list) if questions_list else "Geen vragen vandaag."}
-
-        Keep grinding! 💪
+        email_content = f"""
+        <html>
+        <body>
+        <h2>📊 Dagelijkse Wiskoro Stats</h2>
+        <p><b>🔢 Totaal aantal vragen vandaag:</b> {total_questions}</p>
+        <p><b>❓ Vragen die gesteld zijn:</b></p>
+        <ul>
+        {''.join(f'<li>{q}</li>' for q in questions_list) if questions_list else "<li>Geen vragen vandaag.</li>"}
+        </ul>
+        </body>
+        </html>
         """
 
-        msg = MIMEText(email_content)
+        msg = MIMEText(email_content, "html")
         msg["Subject"] = "📊 Dagelijkse Wiskoro Stats"
-        msg["From"] = SMTP_USERNAME
-        msg["To"] = EMAIL_RECEIVER
+        msg["From"] = settings.SMTP_USERNAME
+        msg["To"] = settings.EMAIL_RECEIVER
 
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SMTP_USERNAME, EMAIL_RECEIVER, msg.as_string())
+            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_USERNAME, settings.EMAIL_RECEIVER, msg.as_string())
 
-        print("✅ Dagelijkse e-mail succesvol verzonden!")
+        logger.info("✅ Dagelijkse e-mail succesvol verzonden!")
 
     except Exception as e:
-        print(f"⚠️ Fout bij verzenden e-mail: {e}")
+        logger.error(f"⚠️ Fout bij verzenden e-mail: {str(e)}", exc_info=True)
 
-# Plan e-mail om elke dag om 21:30 te versturen
+# 🔹 Scheduler voor dagelijks rapport om 21:30
+scheduler = AsyncIOScheduler()
+
 @app.on_event("startup")
-async def schedule_daily_email():
-    while True:
-        now = datetime.now()
-        target_time = now.replace(hour=21, minute=30, second=0)
-        sleep_seconds = (target_time - now).total_seconds()
-        if sleep_seconds < 0:
-            sleep_seconds += 86400  # Voeg 1 dag toe
-
-        await asyncio.sleep(sleep_seconds)
-        await send_daily_email()
+async def startup_event():
+    await Database.create_pool()
+    scheduler.add_job(send_daily_email, "cron", hour=21, minute=30)
+    scheduler.start()
