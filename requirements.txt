@@ -1,3 +1,7 @@
 fastapi
 uvicorn
+requests
 asyncpg
+pydantic
+apscheduler
+email-validator
