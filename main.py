@@ -28,3 +28,21 @@ def chat(request: ChatRequest):
 def chat_get(input_text: str):
     response = f"Je zei: {input_text}. Maar bro, laat me ff nadenken... 🤔"
     return JSONResponse(content={"response": response}, media_type="application/json; charset=utf-8")
+
+from fastapi import FastAPI
+import asyncpg
+import os
+
+app = FastAPI()
+
+# PostgreSQL connectiegegevens ophalen
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+@app.get("/db-test")
+async def db_test():
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.close()
+        return {"status": "✅ Databaseverbinding succesvol!"}
+    except Exception as e:
+        return {"status": f"❌ Database connectie fout: {e}"}
