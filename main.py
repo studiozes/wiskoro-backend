@@ -192,18 +192,16 @@ async def chat(request: ChatRequest, client_request: Request):
             detail="Rustig aan G! Je gaat te snel! 🚦"
         )
 
-    start_time = time.time()
     try:
         bot_response = await get_ai_response(request.message)
-        processing_time = time.time() - start_time
 
         # Log naar database
         conn = await Database.get_connection()
         try:
             await conn.execute("""
-                INSERT INTO logs (vraag, antwoord, status, processing_time) 
-                VALUES ($1, $2, $3, $4)
-            """, request.message, bot_response, "success", processing_time)
+                INSERT INTO logs (vraag, antwoord, status) 
+                VALUES ($1, $2, $3)
+            """, request.message, bot_response, "success")
         except Exception as e:
             logger.error(f"Database logging error: {str(e)}", exc_info=True)
         finally:
@@ -243,8 +241,7 @@ async def send_daily_email():
             result = await conn.fetch("""
                 SELECT 
                     COUNT(*) as total,
-                    ARRAY_AGG(vraag) as vragen,
-                    AVG(COALESCE(processing_time, 0)) as avg_time
+                    ARRAY_AGG(vraag) as vragen
                 FROM logs 
                 WHERE timestamp >= CURRENT_DATE;
             """)
@@ -253,14 +250,12 @@ async def send_daily_email():
 
         total_questions = result[0]['total']
         questions_list = result[0]['vragen'] or []
-        avg_time = round(result[0]['avg_time'] or 0, 2)
 
         email_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
             <h2>📊 Wiskoro Dagelijkse Stats</h2>
             <p><b>🔢 Totaal aantal vragen vandaag:</b> {total_questions}</p>
-            <p><b>⚡ Gemiddelde antwoordtijd:</b> {avg_time} seconden</p>
             <p><b>❓ Vragen die gesteld zijn:</b></p>
             <ul>
             {''.join(f'<li>{q}</li>' for q in questions_list) if questions_list else '<li>Geen vragen vandaag.</li>'}
