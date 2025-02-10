@@ -234,10 +234,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://wiskoro.com",
+        "https://wiskoro.nl",
         "https://www.wiskoro.nl",
-        "https://wiskoro.vercel.app",
-        "http://localhost:3000"
+        "https://api.wiskoro.nl",
+        "http://localhost:3000"  # Voor lokale ontwikkeling
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
