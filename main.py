@@ -36,23 +36,57 @@ async def startup():
 class ChatRequest(BaseModel):
     message: str
 
+import requests
+from fastapi import FastAPI
+from pydantic import BaseModel
+import asyncpg
+import os
+
+app = FastAPI()
+
+# API sleutel voor Hugging Face
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.1"  # Mistral AI model
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+async def connect_db():
+    """Maakt verbinding met de database."""
+    return await asyncpg.connect(DATABASE_URL)
+
+# API request model
+class ChatRequest(BaseModel):
+    message: str
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     user_question = request.message
 
-    # Placeholder antwoord (later kan AI worden toegevoegd)
-    bot_response = f"Je zei: {user_question}. Hier is je antwoord! 📚"
-
-    # Log de interactie in de database
-    conn = await connect_db()
+    # Verstuur de vraag naar Hugging Face API
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+    payload = {"inputs": user_question}
+    
     try:
+        response = requests.post(
+            f"https://api-inference.huggingface.co/models/{HF_MODEL}",
+            headers=headers,
+            json=payload,
+        )
+        response_data = response.json()
+
+        bot_response = response_data[0]["generated_text"] if isinstance(response_data, list) else "Sorry bro, ik snap je vraag ff niet. 😕"
+
+        # Log in database
+        conn = await connect_db()
         await conn.execute("""
             INSERT INTO logs (vraag, antwoord, status) 
             VALUES ($1, $2, $3)
         """, user_question, bot_response, "succes")
         await conn.close()
+
     except Exception as e:
-        print(f"⚠️ Database fout bij logging: {e}")
+        bot_response = "Yo, er ging ff wat mis. 🔧"
+        print(f"⚠️ API fout: {e}")
 
     return {"response": bot_response}
 
