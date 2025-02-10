@@ -36,7 +36,6 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 30
     AI_TIMEOUT: int = 10
     CACHE_EXPIRATION: int = 3600  # 1 uur
-    ALLOWED_ORIGINS: list = ["http://localhost:3000", "https://wiskoro.com"]  # Add your frontend URLs
 
     class Config:
         case_sensitive = True
@@ -152,31 +151,24 @@ async def get_ai_response(user_question: str) -> str:
 app = FastAPI(
     title="Wiskoro API",
     version="1.0.0",
-    docs_url="/docs",  # Enable Swagger UI
-    redoc_url="/redoc",  # Enable ReDoc
-    debug=True  # Enable debug mode
+    docs_url="/docs",
+    redoc_url="/redoc",
+    debug=True,
+    root_path=""
 )
 
-# Log all registered routes at startup
-@app.on_event("startup")
-async def log_routes():
-    """Log all registered routes at startup."""
-    routes = []
-    for route in app.routes:
-        routes.append({
-            "path": route.path,
-            "methods": list(route.methods) if route.methods else [],
-            "name": route.name if route.name else "unnamed"
-        })
-    logger.info(f"Registered routes at startup: {routes}")
-
-# Update CORS middleware with specific origins
+# CORS middleware setup met specifieke origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=[
+        "https://wiskoro.com",
+        "https://www.wiskoro.nl",
+        "https://wiskoro.vercel.app",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 # 🔹 API models
@@ -195,8 +187,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 # 🔹 API endpoints
 @app.get("/")
 async def root():
-    """Test endpoint om te zien of de API live is."""
-    return {"message": "Wiskoro API is live! 🚀"}
+    """Root endpoint met status en route informatie."""
+    routes = []
+    for route in app.routes:
+        routes.append({
+            "path": route.path,
+            "methods": list(route.methods) if route.methods else []
+        })
+    return {
+        "message": "Wiskoro API is live! 🚀",
+        "status": "healthy",
+        "routes": routes,
+        "environment": os.environ.get("RAILWAY_ENVIRONMENT", "unknown")
+    }
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
@@ -210,6 +213,24 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.error("Chat endpoint error: %s", str(e), exc_info=True)
         raise
+
+@app.get("/test")
+async def test_endpoint():
+    """Test endpoint voor basis API functionaliteit."""
+    logger.info("Test endpoint aangeroepen")
+    try:
+        response = {
+            "message": "Test endpoint werkt! 🎉",
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0"
+        }
+        logger.info(f"Test endpoint response: {response}")
+        return response
+    except Exception as e:
+        error_msg = f"Test endpoint error: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/health")
 async def health_check():
@@ -236,67 +257,44 @@ async def health_check():
             }
         )
 
-@app.get("/routes", include_in_schema=True)
-async def list_routes():
-    """List all available API routes."""
+# 🔹 Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services en log environment info."""
     try:
-        routes_list = []
+        # Log environment information
+        logger.info("🔄 Starting application with environment:")
+        logger.info(f"PORT: {os.environ.get('PORT', 'not set')}")
+        logger.info(f"HOST: {os.environ.get('HOST', 'not set')}")
+        logger.info(f"RAILWAY_STATIC_URL: {os.environ.get('RAILWAY_STATIC_URL', 'not set')}")
+        logger.info(f"RAILWAY_PUBLIC_DOMAIN: {os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'not set')}")
+        
+        # Initialize database
+        await Database.create_pool()
+        
+        # Log all registered routes
+        routes = []
         for route in app.routes:
-            routes_list.append({
+            routes.append({
                 "path": route.path,
                 "methods": list(route.methods) if route.methods else [],
                 "name": route.name if route.name else "unnamed"
             })
-        logger.info(f"Available routes: {routes_list}")
-        return {"routes": routes_list, "count": len(routes_list)}
-    except Exception as e:
-        logger.error(f"Failed to list routes: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Kon de routes niet ophalen: {str(e)}"
-        )
-
-@app.get("/test", include_in_schema=True)
-@app.get("/api/test", include_in_schema=True)  # Alternative route
-async def test_endpoint():
-    """Test endpoint voor basis API functionaliteit."""
-    logger.info("Test endpoint aangeroepen")
-    try:
-        response = {
-            "message": "Test endpoint werkt! 🎉",
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "version": "1.0.0"
-        }
-        logger.info(f"Test endpoint response: {response}")
-        return response
-    except Exception as e:
-        error_msg = f"Test endpoint error: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(
-            status_code=500,
-            detail=error_msg
-        )
-
-# 🔹 Startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services."""
-    try:
-        await Database.create_pool()
-        logger.info("✅ Applicatie succesvol gestart")
+        logger.info(f"📝 Registered routes: {routes}")
+        
+        logger.info("✅ Application startup complete")
     except Exception as e:
         logger.error("❌ Startup error: %s", str(e), exc_info=True)
         raise
 
-# 🔹 Shutdown
+# 🔹 Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup bij afsluiten."""
     try:
         if Database.pool:
             await Database.pool.close()
-        logger.info("✅ Applicatie succesvol afgesloten")
+        logger.info("✅ Application shutdown complete")
     except Exception as e:
         logger.error("❌ Shutdown error: %s", str(e))
 
@@ -304,9 +302,4 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8080))
     logger.info("🔥 FastAPI wordt gestart op poort %d...", port)
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
