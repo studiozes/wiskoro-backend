@@ -35,14 +35,32 @@ import os
 
 app = FastAPI()
 
-# PostgreSQL connectiegegevens ophalen
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-@app.get("/db-test")
-async def db_test():
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        await conn.close()
-        return {"status": "✅ Databaseverbinding succesvol!"}
-    except Exception as e:
-        return {"status": f"❌ Database connectie fout: {e}"}
+async def connect_db():
+    """Maakt verbinding met de database."""
+    return await asyncpg.connect(DATABASE_URL)
+
+async def create_table():
+    """Maakt de logs-tabel aan als deze nog niet bestaat."""
+    conn = await connect_db()
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            vraag TEXT NOT NULL,
+            antwoord TEXT NOT NULL,
+            status TEXT NOT NULL
+        );
+    """)
+    await conn.close()
+    print("✅ Logs-tabel aangemaakt (of bestond al)")
+
+# Startup event om de tabel te maken bij backend opstarten
+@app.on_event("startup")
+async def startup():
+    await create_table()
+
+@app.get("/")
+async def root():
+    return {"message": "Wiskoro API is live!"}
