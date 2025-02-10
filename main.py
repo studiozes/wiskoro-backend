@@ -205,3 +205,7 @@ async def shutdown_event():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
+@app.get("/routes")
+async def list_routes():
+    return {route.path: route.methods for route in app.routes}
