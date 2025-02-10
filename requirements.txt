@@ -5,3 +5,4 @@ asyncpg
 pydantic
 apscheduler
 email-validator
+pydantic-settings
