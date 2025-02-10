@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pydantic import BaseModel, BaseSettings
+from pydantic_settings import BaseSettings
 from email.mime.text import MIMEText
 
 # 🔹 Logging configureren
