@@ -99,12 +99,13 @@ class Database:
 
 # 🔹 AI chatbot met caching
 async def get_ai_response(user_question: str) -> str:
+    """Haalt AI-respons op via Hugging Face API."""
     # Check cache
     cached_response = cache.get(user_question)
     if cached_response:
         return cached_response
 
-    # Tijdelijk AI-model wisselen naar BlenderBot omdat Mistral niet werkt
+    # AI-model wisselen naar BlenderBot omdat Mistral niet werkt
     AI_MODEL = "facebook/blenderbot-400M-distill"
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
@@ -155,8 +156,17 @@ class ChatRequest(BaseModel):
     message: str
 
 # 🔹 API endpoints
+@app.get("/")
+async def root():
+    """Test endpoint om te zien of de API live is."""
+    return {"message": "Wiskoro API is live!"}
+
 @app.post("/chat")
-async def chat(request: ChatRequest, client_request: Request):
+async def chat(request: ChatRequest):
+    """Endpoint voor AI-chatbot"""
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="Yo, drop even een vraag! 📢")
+
     try:
         bot_response = await get_ai_response(request.message)
         return {"response": bot_response}
