@@ -155,7 +155,6 @@ def validate_math_question(question: str) -> Tuple[bool, str]:
     
     return True, ""
 
-# 🔹 AI chatbot met wiskunde focus
 async def get_ai_response(user_question: str) -> str:
     """Haalt AI-respons op via Hugging Face API met wiskunde focus."""
     cached_response = cache.get(user_question)
@@ -163,28 +162,28 @@ async def get_ai_response(user_question: str) -> str:
         logger.info("Cache hit voor vraag: %s", user_question)
         return cached_response
 
-    AI_MODEL = "mistralai/Mistral-7B-Instruct-v0.1"
+    AI_MODEL = "google/flan-t5-large"  # Terug naar het werkende model
 
-    math_prompt = f"""<s>[INST] Je bent een wiskundedocent die uitlegt in jongerentaal.
-    Beantwoord deze vraag:
+    # Wiskunde-specifieke prompt
+    math_prompt = f"""Je bent een wiskundedocent die uitlegt in jongerentaal.
+    Los dit wiskundeprobleem stap voor stap op:
+
     {user_question}
 
-    Volg deze regels:
+    Gebruik deze regels:
     1. Leg elke stap duidelijk uit
-    2. Gebruik emoji's waar passend
-    3. Geef het eindantwoord met een ✅
-    4. Gebruik straattaal op een natuurlijke manier
-    5. Houd het kort maar duidelijk [/INST]"""
+    2. Gebruik emoji's
+    3. Schrijf in straattaal
+    4. Geef het eindantwoord met een ✅
+    """
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": math_prompt,
         "parameters": {
-            "max_new_tokens": 500,
+            "max_length": 500,
             "temperature": 0.7,
-            "top_p": 0.95,
-            "return_full_text": False,
-            "stream": False
+            "top_p": 0.9
         }
     }
 
@@ -200,7 +199,6 @@ async def get_ai_response(user_question: str) -> str:
 
         if isinstance(response_data, list) and response_data:
             result = response_data[0].get("generated_text", "")
-            # Format wiskundige notaties
             result = format_math_response(result)
             cache.set(user_question, result)
             return result
