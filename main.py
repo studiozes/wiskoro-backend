@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     EMAIL_RECEIVER: str
     RATE_LIMIT_PER_MINUTE: int = 30
     AI_TIMEOUT: int = 20  # Verhoogd voor complexere wiskundevragen
-    CACHE_EXPIRATION: int = 3600
+    CACHE_EXPIRATION: int = 3600  # 1 uur
 
     class Config:
         case_sensitive = True
@@ -163,29 +163,28 @@ async def get_ai_response(user_question: str) -> str:
         logger.info("Cache hit voor vraag: %s", user_question)
         return cached_response
 
-    # Gebruik een model dat beter is in wiskunde
-    AI_MODEL = "google/flan-t5-large"
+    AI_MODEL = "mistralai/Mistral-7B-Instruct-v0.1"
 
-    # Maak een wiskunde-specifieke prompt
-    math_prompt = f"""Je bent een vriendelijke wiskundedocent die uitlegt in jongerentaal. 
-    Los dit wiskundeprobleem stap voor stap op:
-
+    math_prompt = f"""<s>[INST] Je bent een wiskundedocent die uitlegt in jongerentaal.
+    Beantwoord deze vraag:
     {user_question}
 
-    Geef een duidelijke uitleg in korte, begrijpelijke stappen. 
-    Gebruik emoji's om je uitleg leuker te maken.
-    Begin elke stap met een nummer.
-    Leg uit waarom je elke stap doet.
-    Geef aan het eind het eindantwoord duidelijk aan met '✅ Antwoord:'."""
+    Volg deze regels:
+    1. Leg elke stap duidelijk uit
+    2. Gebruik emoji's waar passend
+    3. Geef het eindantwoord met een ✅
+    4. Gebruik straattaal op een natuurlijke manier
+    5. Houd het kort maar duidelijk [/INST]"""
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": math_prompt,
         "parameters": {
-            "max_length": 800,
+            "max_new_tokens": 500,
             "temperature": 0.7,
-            "top_p": 0.9,
-            "do_sample": True
+            "top_p": 0.95,
+            "return_full_text": False,
+            "stream": False
         }
     }
 
@@ -336,10 +335,10 @@ async def health_check():
             }
         )
 
-# 🔹 Startup & Shutdown events blijven hetzelfde
+# 🔹 Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services."""
+    """Initialize services en log environment info."""
     try:
         logger.info("🔄 Starting application with environment:")
         logger.info(f"PORT: {os.environ.get('PORT', 'not set')}")
@@ -363,6 +362,7 @@ async def startup_event():
         logger.error("❌ Startup error: %s", str(e), exc_info=True)
         raise
 
+# 🔹 Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup bij afsluiten."""
