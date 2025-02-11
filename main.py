@@ -57,7 +57,7 @@ cache = LocalCache()
 
 # 🔹 AI-verbinding met Mistral
 async def get_ai_response(user_question: str) -> Tuple[str, bool]:
-    """Haalt AI-antwoord op via Mistral API, met caching en error handling"""
+    """Haalt AI-antwoord op via Mistral API, met caching en duidelijke opmaak"""
     
     # Check cache
     cached_response = cache.get(user_question)
@@ -72,10 +72,13 @@ async def get_ai_response(user_question: str) -> Tuple[str, bool]:
         "model": "mistral-tiny",
         "messages": [
             {"role": "system", "content": (
-                "Je bent een wiskundeleraar die uitlegt in jongerentaal. "
-                "Gebruik emoji's, straattaal en geef een duidelijke uitleg. "
-                "Laat zien hoe de som stap voor stap wordt opgelost. "
-                "Formatteer wiskundige berekeningen duidelijk."
+                "Je bent een wiskundedocent die uitlegt in jongerentaal. "
+                "Gebruik emoji's, straattaal en maak je uitleg super helder. "
+                "Laat elke stap zien en geef een duidelijke opmaak met witregels.\n\n"
+                "🔢 Als iemand een wiskundevraag stelt, beantwoord die stap voor stap.\n"
+                "📖 Gebruik duidelijke tussenkopjes.\n"
+                "💡 Formatteer berekeningen zoals **2 × 3 = 6**.\n"
+                "🤔 Als de vraag niet wiskundig is, vraag dan: 'Bro, bedoel je iets met wiskunde? 🤔'"
             )},
             {"role": "user", "content": user_question}
         ]
@@ -119,7 +122,7 @@ class ChatRequest(BaseModel):
 # 🔹 FastAPI setup
 app = FastAPI(
     title="Wiskoro API",
-    version="1.1.0",
+    version="1.2.0",
     description="AI chatbot voor wiskundige vraagstukken met Mistral"
 )
 
@@ -148,6 +151,7 @@ async def chat(request: ChatRequest) -> Dict[str, Any]:
     - Geeft stap-voor-stap uitleg in **straattaal**  
     - Gebruikt **emoji's**  
     - Formatteert wiskundige formules mooi  
+    - Vraagt om verduidelijking als de vraag niet wiskundig lijkt  
     """
     try:
         response, is_cached = await get_ai_response(request.message)
@@ -194,5 +198,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", 8080)),
         log_level="info",
-        reload=True  # Alleen voor development
+        reload=True
     )
