@@ -5,7 +5,7 @@ import logging
 import time
 import asyncio
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -62,15 +62,7 @@ async def get_ai_response(user_question: str) -> str:
     **Antwoord:**"""
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
-    payload = {
-        "inputs": math_prompt,
-        "parameters": {
-            "max_length": 300,
-            "temperature": 0.5,
-            "top_p": 0.8,
-            "stop": ["**Vraag:**", "**Antwoord:**"]
-        }
-    }
+    payload = {"inputs": math_prompt}
 
     try:
         response = requests.post(
@@ -82,8 +74,9 @@ async def get_ai_response(user_question: str) -> str:
         response.raise_for_status()
         response_data = response.json()
 
-        if isinstance(response_data, list) and response_data:
-            result = response_data[0].get("generated_text", "").strip()
+        # 🔹 Zorg ervoor dat de juiste tekst wordt opgehaald uit de response
+        if isinstance(response_data, list) and "generated_text" in response_data[0]:
+            result = response_data[0]["generated_text"].strip()
             cache.set(user_question, result)
             return result
 
@@ -92,14 +85,14 @@ async def get_ai_response(user_question: str) -> str:
     except requests.exceptions.Timeout:
         raise HTTPException(status_code=504, detail="Yo fam, deze wiskundevraag is pittig! Probeer het nog een keer! ⏳")
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail="De AI is even off-duty, kom zo terug! 🔧")
+        raise HTTPException(status_code=500, detail=f"De AI is even off-duty, kom zo terug! 🔧 Fout: {str(e)}")
 
 # 🔹 FastAPI setup
-app = FastAPI(title="Wiskoro API", version="1.0.0", root_path="/")  # 🚀 Root path expliciet instellen
+app = FastAPI(title="Wiskoro API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://wiskoro.nl", "https://www.wiskoro.nl", "https://api.wiskoro.nl"],
+    allow_origins=["https://wiskoro.nl", "https://www.wiskoro.nl"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -112,12 +105,7 @@ class ChatRequest(BaseModel):
 # 🔹 API endpoints
 @app.get("/")
 async def root():
-    """Geeft een overzicht van de API-status en beschikbare endpoints."""
-    return {
-        "message": "Wiskoro API is live!",
-        "status": "healthy",
-        "routes": [route.path for route in app.routes]
-    }
+    return {"message": "Wiskoro API is live!", "status": "healthy"}
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
@@ -129,27 +117,18 @@ async def chat(request: ChatRequest):
         bot_response = await get_ai_response(request.message)
         return {"response": bot_response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Er ging iets mis met de AI 😕")
+        raise HTTPException(status_code=500, detail=f"Er ging iets mis met de AI 😕 Fout: {str(e)}")
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
     return JSONResponse(content={"status": "healthy"})
 
-# 🔹 Debugging: Toon alle geregistreerde routes
-@app.get("/routes")
-async def list_routes():
-    """Geeft een overzicht van alle beschikbare API-routes."""
-    return {"routes": [route.path for route in app.routes]}
-
 # 🔹 Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Startup logging en validatie."""
     try:
         logger.info("✅ Application startup complete")
-        logger.info(f"📌 API beschikbaar op: https://api.wiskoro.nl")
-        logger.info(f"📌 Ingeschakelde routes: {[route.path for route in app.routes]}")
     except Exception as e:
         logger.error("❌ Startup error: %s", str(e), exc_info=True)
         raise
