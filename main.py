@@ -56,20 +56,19 @@ async def get_ai_response(user_question: str) -> str:
     AI_MODEL = "google/flan-t5-large"
 
     math_prompt = f"""Je bent een wiskundeleraar die uitlegt in jongerentaal.
-    Beantwoord deze wiskundevraag **stap voor stap** en geef het eindantwoord met een ✅:
-    
+    Los de volgende wiskundevraag **stap voor stap** op en geef het eindantwoord:
+
     **Vraag:** {user_question}
     
-    **Antwoord:**"""
+    **Stap 1:**"""
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": math_prompt,
         "parameters": {
             "max_length": 300,
-            "temperature": 0.5,
-            "top_p": 0.8,
-            "stop": ["**Vraag:**", "**Antwoord:**"]
+            "temperature": 0.3,  # Lagere temperatuur voor preciezere antwoorden
+            "top_p": 0.8
         }
     }
 
