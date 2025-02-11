@@ -52,7 +52,7 @@ async def get_ai_response(user_question: str) -> str:
     if cached_response:
         return cached_response
 
-    AI_MODEL = "google/flan-t5-large"
+    AI_MODEL = "mistralai/Mixtral-8x7B-Instruct"
 
     # 🔹 Verbeterde prompt met duidelijke afsluiting
     math_prompt = (
@@ -62,27 +62,22 @@ async def get_ai_response(user_question: str) -> str:
         f"**Antwoord:**"
     )
 
-    headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
-    payload = {
-        "inputs": math_prompt,
-        "parameters": {
-            "do_sample": True,  # Zorgt ervoor dat het model een creatief antwoord geeft
-            "temperature": 0.7,  # Meer variatie in antwoorden
-            "max_length": 250,   # Niet te lange antwoorden
-            "top_p": 0.9,
-            "return_full_text": False  # Zorgt ervoor dat alleen het antwoord wordt gegeven
-        }
+   headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
+payload = {
+    "inputs": user_question,
+    "parameters": {
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "max_length": 500
     }
+}
 
-    try:
-        response = requests.post(
-            f"https://api-inference.huggingface.co/models/{AI_MODEL}",
-            headers=headers,
-            json=payload,
-            timeout=settings.AI_TIMEOUT
-        )
-        response.raise_for_status()
-        response_data = response.json()
+response = requests.post(
+    f"https://api-inference.huggingface.co/models/{AI_MODEL}",
+    headers=headers,
+    json=payload,
+    timeout=settings.AI_TIMEOUT
+)
 
         # 🔹 Controleer of de AI een echt antwoord heeft gegenereerd
         if isinstance(response_data, list) and response_data and "generated_text" in response_data[0]:
