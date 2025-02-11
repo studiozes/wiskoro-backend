@@ -54,25 +54,23 @@ async def get_ai_response(user_question: str) -> str:
 
     AI_MODEL = "google/flan-t5-large"
 
-    # 🔹 Verbeterde prompt voor beter antwoord
-    math_prompt = f"""
-    **Jij bent een ervaren wiskundeleraar die uitlegt in jongerentaal.**
-    
-    🔢 *Beantwoord deze wiskundevraag stap voor stap en geef het eindantwoord met een ✅:*
-    
-    **Vraag:** {user_question}
-    
-    **Antwoord:**
-    """
+    # 🔹 Verbeterde prompt met duidelijke afsluiting
+    math_prompt = (
+        f"Jij bent een ervaren wiskundeleraar die uitlegt in jongerentaal.\n\n"
+        f"🔢 Beantwoord deze wiskundevraag **stap voor stap** en geef het eindantwoord met een ✅:\n\n"
+        f"**Vraag:** {user_question}\n\n"
+        f"**Antwoord:**"
+    )
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": math_prompt,
         "parameters": {
-            "do_sample": True,  # Zorgt ervoor dat het model creatief een antwoord genereert
+            "do_sample": True,  # Zorgt ervoor dat het model een creatief antwoord geeft
             "temperature": 0.7,  # Meer variatie in antwoorden
-            "max_length": 300,   # Vermijd te korte antwoorden
-            "top_p": 0.9
+            "max_length": 250,   # Niet te lange antwoorden
+            "top_p": 0.9,
+            "return_full_text": False  # Zorgt ervoor dat alleen het antwoord wordt gegeven
         }
     }
 
@@ -87,7 +85,7 @@ async def get_ai_response(user_question: str) -> str:
         response_data = response.json()
 
         # 🔹 Controleer of de AI een echt antwoord heeft gegenereerd
-        if isinstance(response_data, list) and "generated_text" in response_data[0]:
+        if isinstance(response_data, list) and response_data and "generated_text" in response_data[0]:
             result = response_data[0]["generated_text"].strip()
             
             # Zorg ervoor dat het antwoord niet gelijk is aan de vraag
