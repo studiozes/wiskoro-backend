@@ -17,6 +17,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 🔹 HAVO 3 Wiskunde Context
+from typing import TypedDict, List, Dict
+
 class MathContext(TypedDict):
     termen: List[str]
     voorbeelden: List[str]
@@ -24,33 +26,66 @@ class MathContext(TypedDict):
 
 HAVO3_CONTEXT: Dict[str, MathContext] = {
     'algebra': {
-        'termen': ['vergelijking', 'formule', 'functie', 'x', 'y', 'grafiek', 'macht', 'wortel', 'kwadraat', 'exponentieel', 'logaritme', 'factor', 'ontbinden'],
-        'voorbeelden': ['je Spotify stats', 'je volgers groei op social', 'je game scores', 'compound interest bij sparen'],
+        'termen': [
+            'vergelijking', 'formule', 'functie', 'x', 'y', 'grafiek', 'macht', 
+            'wortel', 'kwadraat', 'exponentieel', 'logaritme', 'factor', 'ontbinden', 
+            'substitutie', 'herleiden'
+        ],
+        'voorbeelden': [
+            'je Spotify stats', 'je volgers groei op social', 'je game scores', 
+            'compound interest bij sparen', 'hoeveel volgers je na 6 maanden hebt als je groeit met 5% per maand'
+        ],
         'emoji': '📈'
     },
     'meetkunde': {
-        'termen': ['hoek', 'driehoek', 'oppervlakte', 'pythagoras', 'sin', 'cos', 'tan', 'radialen', 'vectoren', 'symmetrie', 'gelijkvormigheid'],
-        'voorbeelden': ['je gaming setup', 'je beeldscherm size', 'je kamer layout', 'minecraft bouwen'],
+        'termen': [
+            'hoek', 'driehoek', 'oppervlakte', 'pythagoras', 'sin', 'cos', 'tan', 
+            'radialen', 'vectoren', 'symmetrie', 'gelijkvormigheid', 'afstand berekenen', 
+            'coördinaten', 'transformaties'
+        ],
+        'voorbeelden': [
+            'je gaming setup', 'je beeldscherm size', 'je kamer layout', 
+            'minecraft bouwen', 'hoe schuin je skateboard moet staan voor een trick'
+        ],
         'emoji': '📐'
     },
     'statistiek': {
-        'termen': ['gemiddelde', 'mediaan', 'modus', 'standaardafwijking', 'histogram', 'kwartiel', 'normaalverdeling'],
-        'voorbeelden': ['je cijfergemiddelde', 'views op je socials', 'gaming stats', 'spotify wrapped data'],
+        'termen': [
+            'gemiddelde', 'mediaan', 'modus', 'standaardafwijking', 'histogram', 
+            'kwartiel', 'normaalverdeling', 'correlatie', 'variantie', 'spreidingsbreedte'
+        ],
+        'voorbeelden': [
+            'je cijfergemiddelde', 'views op je socials', 'gaming stats', 
+            'spotify wrapped data', 'hoeveel kans je hebt dat je loot box een zeldzaam item bevat'
+        ],
         'emoji': '📊'
     },
     'rekenen': {
-        'termen': ['plus', 'min', 'keer', 'delen', 'procent', 'breuk', 'machten', 'wortels', '√', 'π', 'afronden'],
-        'voorbeelden': ['korting op sneakers', 'je grade average', 'je savings goals', 'XP berekenen'],
+        'termen': [
+            'plus', 'min', 'keer', 'delen', 'procent', 'breuk', 'machten', 'wortels', 
+            '√', 'π', 'afronden', 'schatten', 'exponentiële groei', 'wetenschappelijke notatie', 
+            'procentuele verandering', 'verhoudingen'
+        ],
+        'voorbeelden': [
+            'korting op sneakers', 'je grade average', 'je savings goals', 
+            'XP berekenen', 'hoeveel je bespaart met Black Friday deals', 
+            'hoeveel sneller je een game kan uitspelen als je 20% efficiënter speelt'
+        ],
         'emoji': '🧮'
     }
 }
-
 # 🔹 Niet-wiskunde responses
 NIET_WISKUNDE_RESPONSES = [
-    "Yo sorry! Wiskunde is mijn ding, voor {onderwerp} moet je bij iemand anders zijn! 🧮",
-    "Brooo, ik ben een wiskundenerd! Voor {onderwerp} kan ik je niet helpen! 📚",
-    "Nah fam, alleen wiskunde hier! {onderwerp} is niet mijn expertise! 🤓",
-    "Wiskunde? Bet! Maar {onderwerp}? Daar snap ik niks van! 🎯"
+    "Yo sorry, ik doe alleen wiskunde! Voor {onderwerp} moet je ff iemand anders fixen! 🧮",
+    "Nah bro, ik ben een rekenbaas, maar {onderwerp}? Daar faal ik in! 📚💀",
+    "Haha nice try! Maar ik help alleen met wiskunde, niet met {onderwerp}. 🎯",
+    "Yo fam, ik kan je leren hoe je x oplost, maar {onderwerp}? Nope, geen idee! 🤓",
+    "Houd het bij wiskunde yo! Voor {onderwerp} ben ik geen expert. 😎",
+    "Yo bro, ik kan je leren hoe je een cirkel berekent, maar {onderwerp}? No clue! 📐",
+    "Sorry maat, wiskunde is mijn ding, {onderwerp} is abacadabra voor mij! 🔢",
+    "Ik ben hier voor de math grind, niet voor {onderwerp}! 🤖🧮",
+    "Yo, ik snap wiskunde beter dan m’n eigen leven, maar {onderwerp}? Geen idee. 💯",
+    "Als het over sommen gaat, ben ik erbij. Maar {onderwerp}? Skip die vraag! 😆"
 ]
 
 # 🔹 API instellingen
@@ -74,7 +109,29 @@ async def get_ai_response(question: str) -> str:
             context = key
             break
     
-    prompt = f"Je bent een wiskundeleraar en legt dingen uit in jongerentaal. {question}\nAntwoord:" 
+    prompt = f"""
+Yo, je bent Wiskoro, de wiskundebaas die HAVO 3-leerlingen helpt met sommen. 🔥📚
+Jouw taak? Maak wiskunde **simpel, snel en begrijpelijk** met een dikke straattaalvibe. 
+
+🔹 **Hoe je antwoorden eruit moeten zien:**
+1️⃣ **KORT & SNEL** → Max 2 zinnen per antwoord  
+2️⃣ **GENZ/STRAATTAAL** → Chill, maar wel duidelijk  
+3️⃣ **STAP VOOR STAP** → Laat zien *hoe* je het doet  
+4️⃣ **ALTIJD NEDERLANDS** → Geen Engels of moeilijke vaktaal  
+5️⃣ **FLEX MET HUMOR** → Niet te serieus, maar wel correct  
+
+💡 **Extra vibes die je mag gebruiken in antwoorden:**
+- "Ey bro, ff serieus, dit is makkelijker dan je denkt!"  
+- "Oké oké, let op, dit is de move:"  
+- "No stress! Ik fix dit voor je in 2 seconden!"  
+- "Dit is echt wiskunde light werk, let op:"  
+- "Je hebt gewoon deze formule nodig, easy:"  
+
+---
+
+❓ **Vraag:** {question}  
+✅ **Antwoord:**
+"""
     try:
         response = requests.post(
             "https://api.mistral.ai/v1/chat/completions",
