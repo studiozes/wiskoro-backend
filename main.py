@@ -4,9 +4,8 @@ from typing import Dict, Any, Optional, Tuple
 import logging
 import time
 import asyncio
+import aiohttp
 
-import requests
-import asyncpg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -77,6 +76,19 @@ class LocalCache:
 
 cache = LocalCache()
 
+# Globale aiohttp ClientSession
+async def get_aiohttp_session():
+    """Creëert of hergebruikt een aiohttp ClientSession."""
+    if not hasattr(get_aiohttp_session, '_session'):
+        get_aiohttp_session._session = aiohttp.ClientSession()
+    return get_aiohttp_session._session
+
+async def close_aiohttp_session():
+    """Sluit de aiohttp ClientSession."""
+    if hasattr(get_aiohttp_session, '_session'):
+        await get_aiohttp_session._session.close()
+        delattr(get_aiohttp_session, '_session')
+
 async def get_ai_response(user_question: str) -> Tuple[str, bool]:
     """
     Haalt AI-respons op met verbeterde error handling en response validatie.
@@ -111,14 +123,20 @@ async def get_ai_response(user_question: str) -> Tuple[str, bool]:
     }
 
     try:
+        session = await get_aiohttp_session()
         async with asyncio.timeout(settings.AI_TIMEOUT):
-            response = requests.post(
+            async with session.post(
                 f"https://api-inference.huggingface.co/models/{AI_MODEL}",
                 headers=headers,
                 json=payload
-            )
-            response.raise_for_status()
-            response_data = response.json()
+            ) as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"AI service error: {response.status}"
+                    )
+                
+                response_data = await response.json()
 
         # Valideer response format
         if not isinstance(response_data, list) or not response_data:
@@ -138,7 +156,7 @@ async def get_ai_response(user_question: str) -> Tuple[str, bool]:
             status_code=504,
             detail="Yo fam, deze wiskundevraag is pittig! Probeer het nog een keer! ⏳"
         )
-    except requests.exceptions.RequestException as e:
+    except aiohttp.ClientError as e:
         logger.error(f"AI request fout: {str(e)}")
         raise HTTPException(
             status_code=503,
@@ -218,7 +236,7 @@ async def health_check() -> Dict[str, Any]:
         "cache_size": len(cache._cache)
     }
 
-# Periodieke cache cleanup
+# Startup en shutdown events
 @app.on_event("startup")
 async def startup_event():
     """Startup event met cache cleanup scheduler."""
@@ -231,11 +249,23 @@ async def startup_event():
                 logger.error(f"Cache cleanup error: {str(e)}")
 
     try:
+        # Start cache cleanup task
         asyncio.create_task(cleanup_cache())
+        # Initialiseer aiohttp session
+        await get_aiohttp_session()
         logger.info("✅ Application startup complete")
     except Exception as e:
         logger.error(f"❌ Startup error: {str(e)}", exc_info=True)
         raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown event voor cleanup."""
+    try:
+        await close_aiohttp_session()
+        logger.info("✅ Application shutdown complete")
+    except Exception as e:
+        logger.error(f"❌ Shutdown error: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     import uvicorn
