@@ -4,9 +4,8 @@ import requests
 import logging
 import time
 import asyncio
-import re
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from datetime import datetime
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -56,19 +55,20 @@ async def get_ai_response(user_question: str) -> str:
     AI_MODEL = "google/flan-t5-large"
 
     math_prompt = f"""Je bent een wiskundeleraar die uitlegt in jongerentaal.
-    Los de volgende wiskundevraag **stap voor stap** op en geef het eindantwoord:
-
+    Beantwoord deze wiskundevraag **stap voor stap** en geef het eindantwoord met een ✅:
+    
     **Vraag:** {user_question}
     
-    **Stap 1:**"""
+    **Antwoord:**"""
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
     payload = {
         "inputs": math_prompt,
         "parameters": {
             "max_length": 300,
-            "temperature": 0.3,  # Lagere temperatuur voor preciezere antwoorden
-            "top_p": 0.8
+            "temperature": 0.5,
+            "top_p": 0.8,
+            "stop": ["**Vraag:**", "**Antwoord:**"]
         }
     }
 
@@ -95,11 +95,11 @@ async def get_ai_response(user_question: str) -> str:
         raise HTTPException(status_code=500, detail="De AI is even off-duty, kom zo terug! 🔧")
 
 # 🔹 FastAPI setup
-app = FastAPI(title="Wiskoro API", version="1.0.0")
+app = FastAPI(title="Wiskoro API", version="1.0.0", root_path="/")  # 🚀 Root path expliciet instellen
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://wiskoro.nl", "https://www.wiskoro.nl"],
+    allow_origins=["https://wiskoro.nl", "https://www.wiskoro.nl", "https://api.wiskoro.nl"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -112,7 +112,12 @@ class ChatRequest(BaseModel):
 # 🔹 API endpoints
 @app.get("/")
 async def root():
-    return {"message": "Wiskoro API is live!", "status": "healthy"}
+    """Geeft een overzicht van de API-status en beschikbare endpoints."""
+    return {
+        "message": "Wiskoro API is live!",
+        "status": "healthy",
+        "routes": [route.path for route in app.routes]
+    }
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
@@ -131,11 +136,20 @@ async def health_check():
     """Health check endpoint."""
     return JSONResponse(content={"status": "healthy"})
 
+# 🔹 Debugging: Toon alle geregistreerde routes
+@app.get("/routes")
+async def list_routes():
+    """Geeft een overzicht van alle beschikbare API-routes."""
+    return {"routes": [route.path for route in app.routes]}
+
 # 🔹 Startup event
 @app.on_event("startup")
 async def startup_event():
+    """Startup logging en validatie."""
     try:
         logger.info("✅ Application startup complete")
+        logger.info(f"📌 API beschikbaar op: https://api.wiskoro.nl")
+        logger.info(f"📌 Ingeschakelde routes: {[route.path for route in app.routes]}")
     except Exception as e:
         logger.error("❌ Startup error: %s", str(e), exc_info=True)
         raise
