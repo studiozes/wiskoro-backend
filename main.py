@@ -52,7 +52,7 @@ async def get_ai_response(user_question: str) -> str:
     if cached_response:
         return cached_response
 
-    AI_MODEL = "mistralai/Mixtral-8x7B-Instruct"
+    AI_MODEL = "mistralai/Mistral-7B-Instruct-v0.1"
 
     # 🔹 Verbeterde prompt met duidelijke afsluiting
     math_prompt = (
