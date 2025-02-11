@@ -39,23 +39,23 @@ CONTEXT_PROMPTS = {
 }
 
 # 🔹 Systeem prompt template
-SYSTEM_PROMPT = """Je bent Wiskoro, de Nederlandse wiskunde expert! 🧮
+SYSTEM_PROMPT = """Je bent Wiskoro, een Nederlandse wiskunde chatbot die in straattaal praat! 🧮
 
-BELANGRIJK:
-- Als je het antwoord niet ZEKER weet, zeg dan: "Sorry fam, deze snap ik even niet 100%. Kun je het anders vragen? 🤔"
-- Als de vraag niet over wiskunde/rekenen gaat, zeg dan: "Yo! Ik help alleen met wiskunde en rekenen! 🧮"
-
-REGELS VOOR ANTWOORDEN:
-1. ALTIJD eerst controleren of je 100% zeker bent
-2. ALTIJD stap voor stap uitrekenen
-3. MAX 3 zinnen in je antwoord
-4. Alleen antwoorden als je het ZEKER weet
-5. Bij twijfel altijd vragen om verduidelijking
+ANTWOORD REGELS:
+1. ALTIJD in het Nederlands
+2. ALTIJD kort en bondig (max 2 zinnen)
+3. ALTIJD straattaal gebruiken
+4. NOOIT vermelden dat je een AI of taalmodel bent
+5. ALTIJD afsluiten met emoji
 
 ANTWOORD FORMAAT:
-1) Antwoord (één zin)
-2) Snelle uitleg (één zin)
-3) Emoji's
+"Yo! [antwoord]. [korte uitleg] 🧮💯"
+
+Voor niet-wiskunde vragen:
+"Yo! Sorry fam, ik help alleen met wiskunde en rekenen! 🧮"
+
+Bij onduidelijke vragen:
+"Sorry fam, snap je vraag niet helemaal. Kun je het anders zeggen? 🤔"
 
 {context_prompt}
 
@@ -149,16 +149,33 @@ def validate_answer(question: str, answer: str, context: str) -> bool:
     return verify_numerical_answer(question, answer)
 
 def post_process_response(response: str) -> str:
-    """Controleer en verbeter het antwoord."""
-    response = ' '.join(response.split('\n'))
+    """Verwerk en schoon het antwoord op."""
+    # Verwijder alle newlines en dubbele spaties
+    response = ' '.join(response.split())
     
-    if not any(char in response for char in ['😊', '🧮', '✨', '💯', '🤔']):
+    # Verwijder metadata opmerkingen
+    metadata_patterns = [
+        r'\(Note:.*?\)',
+        r'\[Note:.*?\]',
+        r'\{Note:.*?\}',
+        r'This response.*?based\.',
+        r'As an AI.*?\.',
+        r'I am.*?model\.',
+        r'I\'m.*?model\.',
+    ]
+    
+    for pattern in metadata_patterns:
+        response = re.sub(pattern, '', response, flags=re.IGNORECASE)
+    
+    # Zorg dat er een emoji in zit
+    if not any(char in response for char in ['🧮', '💯', '🤔', '💪', '✨']):
         response += ' 🧮'
     
+    # Houd het kort
     if len(response) > settings.MAX_RESPONSE_LENGTH:
-        response = response[:settings.MAX_RESPONSE_LENGTH].rsplit('.', 1)[0] + '. 💯'
+        response = response[:settings.MAX_RESPONSE_LENGTH].rsplit('.', 1)[0] + '! 💯'
     
-    return response
+    return response.strip()
 
 # 🔹 Rate limiter
 class RateLimiter:
@@ -249,7 +266,7 @@ async def get_ai_response(user_question: str, client_ip: str) -> Tuple[str, bool
                     "model": "mistral-medium",
                     "messages": [{"role": "system", "content": full_prompt}],
                     "max_tokens": settings.MAX_TOKENS,
-                    "temperature": 0.3
+                    "temperature": 0.1
                 }
             )
             response.raise_for_status()
