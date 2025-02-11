@@ -108,8 +108,8 @@ async def get_ai_response(question: str) -> str:
         if any(term in question.lower() for term in data['termen']):
             context = key
             break
-    
-   INTRO_TEXT = """
+
+INTRO_TEXT = """
 Wiskoro is jouw wiskundemaatje voor HAVO 3! 🎓 Deze chatbot legt alles uit in straattaal, met humor en slimme tips. Geen saaie theorie, maar gewoon duidelijke uitleg die je snapt.
 
 🚀 Wiskoro's skills:
