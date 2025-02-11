@@ -54,15 +54,27 @@ async def get_ai_response(user_question: str) -> str:
 
     AI_MODEL = "google/flan-t5-large"
 
-    math_prompt = f"""Je bent een wiskundeleraar die uitlegt in jongerentaal.
-    Beantwoord deze wiskundevraag **stap voor stap** en geef het eindantwoord met een ✅:
+    # 🔹 Verbeterde prompt voor beter antwoord
+    math_prompt = f"""
+    **Jij bent een ervaren wiskundeleraar die uitlegt in jongerentaal.**
+    
+    🔢 *Beantwoord deze wiskundevraag stap voor stap en geef het eindantwoord met een ✅:*
     
     **Vraag:** {user_question}
     
-    **Antwoord:**"""
+    **Antwoord:**
+    """
 
     headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
-    payload = {"inputs": math_prompt}
+    payload = {
+        "inputs": math_prompt,
+        "parameters": {
+            "do_sample": True,  # Zorgt ervoor dat het model creatief een antwoord genereert
+            "temperature": 0.7,  # Meer variatie in antwoorden
+            "max_length": 300,   # Vermijd te korte antwoorden
+            "top_p": 0.9
+        }
+    }
 
     try:
         response = requests.post(
@@ -74,9 +86,14 @@ async def get_ai_response(user_question: str) -> str:
         response.raise_for_status()
         response_data = response.json()
 
-        # 🔹 Zorg ervoor dat de juiste tekst wordt opgehaald uit de response
+        # 🔹 Controleer of de AI een echt antwoord heeft gegenereerd
         if isinstance(response_data, list) and "generated_text" in response_data[0]:
             result = response_data[0]["generated_text"].strip()
+            
+            # Zorg ervoor dat het antwoord niet gelijk is aan de vraag
+            if result.lower().strip() == user_question.lower().strip():
+                raise ValueError("De AI heeft de vraag herhaald in plaats van een antwoord te geven.")
+
             cache.set(user_question, result)
             return result
 
