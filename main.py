@@ -5,142 +5,107 @@ import logging
 import asyncio
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, TypedDict
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
-import random
 
-# Logging configuratie
+# 🔹 Logging configuratie
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# GenZ/straattaal vibes
-STRAATTAAL = {
-    "intro": [
-        "Ey fam!", "Yo bro!", "Wagwan!", "Aight, luister!", "Hoor me ff!",
-        "Check dit!", "Brooo, dit is easy!", "Dit fixen we!", "Ik help je wel!"
-    ],
-    "bevestiging": [
-        "Makkie toch?", "Snap je?", "Check je die?", "Gekke wiskunde moves!", "Wiskunde goat!",
-        "Fakka met je cijfers!", "No cap, dit klopt!", "Wiskunde baas!", "Eitje toch?"
-    ],
-}
+# 🔹 HAVO 3 Wiskunde Context
+class MathContext(TypedDict):
+    termen: List[str]
+    voorbeelden: List[str]
+    emoji: str
 
-# Wiskunde context
-HAVO3_CONTEXT = {
+HAVO3_CONTEXT: Dict[str, MathContext] = {
     'algebra': {
-        'termen': ['vergelijking', 'formule', 'functie', 'macht', 'wortel', 'logaritme'],
+        'termen': ['vergelijking', 'formule', 'functie', 'x', 'y', 'grafiek', 'macht', 'wortel', 'kwadraat', 'exponentieel', 'logaritme', 'factor', 'ontbinden'],
+        'voorbeelden': ['je Spotify stats', 'je volgers groei op social', 'je game scores', 'compound interest bij sparen'],
         'emoji': '📈'
     },
     'meetkunde': {
-        'termen': ['hoek', 'driehoek', 'oppervlakte', 'pythagoras', 'sin', 'cos', 'tan'],
+        'termen': ['hoek', 'driehoek', 'oppervlakte', 'pythagoras', 'sin', 'cos', 'tan', 'radialen', 'vectoren', 'symmetrie', 'gelijkvormigheid'],
+        'voorbeelden': ['je gaming setup', 'je beeldscherm size', 'je kamer layout', 'minecraft bouwen'],
         'emoji': '📐'
     },
     'statistiek': {
-        'termen': ['gemiddelde', 'mediaan', 'modus', 'histogram', 'boxplot'],
+        'termen': ['gemiddelde', 'mediaan', 'modus', 'standaardafwijking', 'histogram', 'kwartiel', 'normaalverdeling'],
+        'voorbeelden': ['je cijfergemiddelde', 'views op je socials', 'gaming stats', 'spotify wrapped data'],
         'emoji': '📊'
     },
     'rekenen': {
-        'termen': ['plus', 'min', 'keer', 'delen', 'procent', 'breuk', '+', '-'],
+        'termen': ['plus', 'min', 'keer', 'delen', 'procent', 'breuk', 'machten', 'wortels', '√', 'π', 'afronden'],
+        'voorbeelden': ['korting op sneakers', 'je grade average', 'je savings goals', 'XP berekenen'],
         'emoji': '🧮'
     }
 }
 
-# AI instellingen (ongewijzigd, want die werken goed!)
+# 🔹 Niet-wiskunde responses
+NIET_WISKUNDE_RESPONSES = [
+    "Yo sorry! Wiskunde is mijn ding, voor {onderwerp} moet je bij iemand anders zijn! 🧮",
+    "Brooo, ik ben een wiskundenerd! Voor {onderwerp} kan ik je niet helpen! 📚",
+    "Nah fam, alleen wiskunde hier! {onderwerp} is niet mijn expertise! 🤓",
+    "Wiskunde? Bet! Maar {onderwerp}? Daar snap ik niks van! 🎯"
+]
+
+# 🔹 API instellingen
 class Settings(BaseSettings):
     MISTRAL_API_KEY: str = Field(..., description="Mistral API Key")
-    AI_TIMEOUT: int = Field(10, description="Timeout voor AI requests")
-    MAX_TOKENS: int = Field(100, description="Max tokens voor AI response")
-    ALLOWED_ORIGINS: list[str] = Field(
-        ["https://wiskoro.nl", "https://www.wiskoro.nl"],
-        description="Toegestane CORS origins"
-    )
+    AI_TIMEOUT: int = 10
+    CACHE_EXPIRATION: int = 3600
+    MAX_RESPONSE_LENGTH: int = 200
+    MAX_TOKENS: int = 100
+    ALLOWED_ORIGINS: List[str] = ["https://wiskoro.nl", "https://www.wiskoro.nl"]
     class Config:
         env_file = ".env"
 
 settings = Settings()
 
-# Functie om wiskundevraag te herkennen
-def identify_math_context(question: str) -> Tuple[str, str]:
-    """Identificeer de juiste wiskunde context."""
-    question_lower = question.lower()
-    for context, data in HAVO3_CONTEXT.items():
-        if any(term in question_lower for term in data['termen']):
-            return context, data['emoji']
-    return 'rekenen', '🧮'  # Default naar rekenen
-
-# Functie om straattaal antwoord te genereren
-def format_response(answer: str, emoji: str) -> str:
-    """Maak het antwoord leuker en korter."""
-    sentences = [s.strip() for s in answer.split('.') if s.strip()]
-    if len(sentences) > 2:
-        sentences = sentences[:2]
-    result = f"{random.choice(STRAATTAAL['intro'])} {' '.join(sentences)} {emoji}"
-    if random.random() < 0.3:
-        result += f" {random.choice(STRAATTAAL['bevestiging'])}!"
-    return result
-
-# AI chatbot functie (zelfde API, geen aanpassingen!)
-async def get_ai_response(user_question: str, client_ip: str) -> str:
-    """Haalt AI-respons op met verbeterde stijl."""
-    context, emoji = identify_math_context(user_question)
-    full_prompt = f"Vraag: {user_question}\nAntwoord:"  # Simpele prompt
+# 🔹 AI Request Handler
+async def get_ai_response(question: str) -> str:
+    context = 'algemeen'
+    for key, data in HAVO3_CONTEXT.items():
+        if any(term in question.lower() for term in data['termen']):
+            context = key
+            break
     
+    prompt = f"Je bent een wiskundeleraar en legt dingen uit in jongerentaal. {question}\nAntwoord:" 
     try:
-        async with asyncio.timeout(settings.AI_TIMEOUT):
-            response = requests.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.MISTRAL_API_KEY}"},
-                json={
-                    "model": "mistral-medium",
-                    "messages": [{"role": "system", "content": full_prompt}],
-                    "max_tokens": settings.MAX_TOKENS,
-                    "temperature": 0.1
-                }
-            )
-            response.raise_for_status()
-            result = response.json()["choices"][0]["message"]["content"].strip()
-            return format_response(result, emoji)
-    except Exception as e:
-        logger.error(f"AI error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Yo bro, iets ging mis! Probeer ff opnieuw! 🔧")
+        response = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.MISTRAL_API_KEY}"},
+            json={
+                "model": "mistral-medium",
+                "messages": [{"role": "system", "content": prompt}],
+                "max_tokens": settings.MAX_TOKENS,
+                "temperature": 0.1
+            },
+            timeout=settings.AI_TIMEOUT
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"].strip()
+    except requests.exceptions.RequestException:
+        raise HTTPException(status_code=503, detail="AI service is even niet bereikbaar. Probeer later nog eens! 🛠️")
 
-# FastAPI setup
+# 🔹 FastAPI Setup
 app = FastAPI(title="Wiskoro API", version="1.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=settings.ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
 
-# Chat endpoint
+# 🔹 API Models
+class ChatRequest(BaseModel):
+    message: str
+
+# 🔹 API Endpoints
 @app.post("/chat")
-async def chat(request: BaseModel, client_request: Request):
-    """Wiskunde chatbot endpoint."""
-    try:
-        response = await get_ai_response(request.message, client_request.client.host)
-        return {"response": response, "timestamp": datetime.utcnow().isoformat()}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Yo bro, iets ging mis! Probeer ff opnieuw! 🔧")
+async def chat(request: ChatRequest):
+    response = await get_ai_response(request.message)
+    return {"response": response}
 
-# Health check
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    logger.info("✅ Wiskoro API gestart!")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8080)), log_level="info")
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
