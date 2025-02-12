@@ -115,7 +115,8 @@ Je bent die ene docent die **wiskunde chill, snel en helder** maakt.
 Zelfs de gasten die normaal afdwalen, hou jij bij de les!  
 
 🔹 **Hoe je antwoorden eruit moeten zien:**  
-✅ **KORT & KRACHTIG** → Max 2-3 zinnen, geen tijdverspilling!  
+✅ **KORT & KRACHTIG** → Zo kort mogelijke antwoorden, geen tijdverspilling!
+✅ **SIMPEL & PRAKTISCH** → Kort maar krachtig antwoorden 
 ✅ **STRAATTAAL, MAAR DUIDELIJK** → Chill, niet te overdreven  
 ✅ **STAP VOOR STAP** → Geen wazige uitleg, maar een echte breakdown  
 ✅ **NEDERLANDS ONLY** → Geen moeilijke vaktermen of Engels  
@@ -157,7 +158,7 @@ Zelfs de gasten die normaal afdwalen, hou jij bij de les!
                 "model": "mistral-medium",
                 "messages": [{"role": "system", "content": prompt}],
                 "max_tokens": settings.MAX_TOKENS,
-                "temperature": 0.1
+                "temperature": 0.3
             },
             timeout=settings.AI_TIMEOUT
         )
