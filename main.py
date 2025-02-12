@@ -76,24 +76,16 @@ HAVO3_CONTEXT: Dict[str, MathContext] = {
 }
 # 🔹 Niet-wiskunde responses
 NIET_WISKUNDE_RESPONSES = [
-    "Yo sorry, ik doe alleen wiskunde! Vraag me iets over breuken of algebra, niet over {onderwerp}. 🧮",
-    "Nah bro, ik ben een rekenbaas, maar {onderwerp}? Daar faal ik in! 📚💀",
-    "Haha nice try! Maar ik help alleen met wiskunde, niet met {onderwerp}. 🎯",
-    "Yo fam, ik kan je leren hoe je x oplost, maar {onderwerp}? Nope, geen idee! 🤓",
-    "Houd het bij wiskunde yo! Vraag me hoe je korting op sneakers berekent, niet over {onderwerp}. 😎",
-    "Yo bro, ik kan je leren hoe je een cirkel berekent, maar {onderwerp}? No clue! 📐",
-    "Sorry maat, wiskunde is mijn ding, maar {onderwerp} is abacadabra voor mij! 🔢",
-    "Ik ben hier voor de math grind, niet voor {onderwerp}! 🤖🧮",
-    "Yo, ik snap wiskunde beter dan m’n eigen leven, maar {onderwerp}? Geen idee. 💯",
-    "Als het over sommen gaat, ben ik erbij. Maar {onderwerp}? Skip die vraag! 😆",
-    "Bro, ik rock die wiskunde, maar als je iets over {onderwerp} wil weten? Moet je iemand anders fixen. 🚫",
-    "Yo, vraag me iets over formules en vergelijkingen, geen deep talk over {onderwerp}. 💸",
-    "Ik ben de rekenkoning, maar hoe je {onderwerp} fixt? Laat mij maar lekker met cijfers spelen. 🔢👑",
-    "Eerlijk, als je iets met wiskunde hebt: hit me up. Maar {onderwerp}? Nope, next! ⏭️",
-    "Bro, wiskunde is mijn grind. Maar {onderwerp}? Da’s niet mijn battlefield. 🎮",
-    "Ik ben geen Wikipedia, alleen een wiskundebaas. Hoe je {onderwerp} moet aanpakken? Zoek dat ff op bro. 📖",
-    "Haha, nice try! Maar ik fix je wiskunde, geen life coaching over {onderwerp}. 🤡",
-    "Yo fam, ik kan je wiskundeskills upgraden, maar {onderwerp}? Da’s een side quest die ik oversla. 🎮💀"
+    "Yo sorry, hier doen we alleen aan wiskunde! Geen politiek, geen gossip, alleen sommen. 🧮",
+    "Haha nice try! Maar als het geen wiskunde is, dan ben ik out. 🎯",
+    "Bro, ik ben hier om te rekenen, geen Wikipedia. Gooi een som en ik fix het! 🔢",
+    "Wiskunde = mijn ding. Alles daarbuiten? Nope, daar weet ik niks van. 🤓",
+    "Maat, ik doe alleen cijfers en formules. De rest laat ik aan Google over! 💡",
+    "Haha, dacht je dat ik alles wist? Nope! Maar als je een som hebt, ben ik je guy! 🧠",
+    "Yo fam, ik kan je helpen met x en π, maar Trump? Daar ben ik niet voor getraind. 🎓",
+    "Check, ik ben een wiskundebaas. Alles daarbuiten? Daar hou ik me niet mee bezig! 😎",
+    "Bro, ik snap formules beter dan m’n eigen leven. Maar wereldnieuws? No clue! 💯",
+    "Als het geen wiskunde is, hoef je mij niet te vragen. Next question! 🎲"
 ]
 
 # 🔹 API instellingen
@@ -131,8 +123,12 @@ Wiskunde? Geen droge theorie. Geen nutteloze formules.
 ✅ **Leren moet voelen als winnen** – jij maakt het een game, geen verplichting.  
 ✅ **Begrijpen > stampen** – jij leert ze denken, niet papegaaien.  
 ✅ **Streetwise & scherp** – jij bent de leraar die snapt hoe zij leren.  
+✅ NUL informatie over niet-wiskunde onderwerpen → Meteen afkappen.
+✅ Meer variatie in afwijzingen → Antwoorden nog vlotter en gevarieerder maken.
+✅ Extra controle voor zekerheid → Geen enkele niet-wiskundevraag glipt er nog door.
 
 Jij houdt het **kort, krachtig en met humor**. 📢  
+Controleer of de vraag wiskundige termen bevat zonder uitzondering. Alleen dan mag er een inhoudelijk antwoord komen. 📈
 Want let’s be real: **saai leren? Nooit van gehoord.** 🚀  
 
 🔹 **Hoe je antwoorden eruit moeten zien:**  
