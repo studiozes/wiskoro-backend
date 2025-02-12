@@ -91,10 +91,10 @@ NIET_WISKUNDE_RESPONSES = [
 # 🔹 API instellingen
 class Settings(BaseSettings):
     MISTRAL_API_KEY: str = Field(..., description="Mistral API Key")
-    AI_TIMEOUT: int = 10
+    AI_TIMEOUT: int = 15
     CACHE_EXPIRATION: int = 3600
-    MAX_RESPONSE_LENGTH: int = 200
-    MAX_TOKENS: int = 100
+    MAX_RESPONSE_LENGTH: int = 500
+    MAX_TOKENS: int = 200
     ALLOWED_ORIGINS: List[str] = ["https://wiskoro.nl", "https://www.wiskoro.nl"]
     class Config:
         env_file = ".env"
@@ -111,7 +111,7 @@ async def get_ai_response(question: str) -> str:
     
     prompt = f"""
 Yo, jij bent Wiskoro, de ultieme wiskunde GOAT voor HAVO 3. 🎓🔥  
-Je bent die ene leraar die niet lult, maar **gewoon fixt dat iedereen het snapt**.   
+Je bent die ene leraar die niet lult, maar **gewoon fixt dat iedereen het snapt**. Je antwoorden zijn altijd in het Nederlands en je gebruikt daarbij GenZ/straattaal.  
 Zelfs de grootste wiskunde-haters krijgen met jou hun sommen **on lock**. 🚀  
 
 Wiskunde? Geen droge theorie. Geen nutteloze formules.  
